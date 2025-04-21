@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MotionDiv, MotionCard, cardHover, staggerContainer, slideUp } from "@/components/ui/motion"
+import { useUser } from '@/hooks/useUser'
 
 // Define types for our data
 interface RecentPost {
@@ -36,20 +37,35 @@ interface DashboardData {
   drafts: Draft[]
 }
 
+interface User {
+  id: string
+  name: string
+  email: string
+  generationsLeft: number
+  generationsTotal: number
+}
+
+interface UseUserReturn {
+  user: User | null
+  loading: boolean
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { user, loading } = useUser()
 
-  // For learning purposes, we'll hardcode a user ID
-  // In a real app, you would get this from a logged-in user session
-  const userId = "67fbff6fbf0eb0270d947786" // Replace with a real user ID from your database
-  
-
+  // Fixed: Move this inside the effect to ensure it only runs after user is loaded
   useEffect(() => {
+    // Don't fetch data if user isn't loaded yet or doesn't exist
+    if (loading || !user) return;
+    
+    const userId = user.id;
+    
     async function fetchDashboardData() {
       try {
-        setLoading(true)
+        setIsLoading(true)
         const response = await fetch(`/api/dashboard?userId=${userId}`)
         
         if (!response.ok) {
@@ -63,12 +79,13 @@ export default function DashboardPage() {
         console.error('Error fetching dashboard data:', err)
         setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
       } finally {
-        setLoading(false)
+        // Fixed: Using the correct setter function
+        setIsLoading(false)
       }
     }
 
     fetchDashboardData()
-  }, [userId])
+  }, [user, loading]) // Include both user and loading in the dependencies
 
   // Create stats array from data
   const stats = data ? [
@@ -78,7 +95,8 @@ export default function DashboardPage() {
     { title: "Generations Left", value: data.stats.generations },
   ] : []
 
-  if (loading) {
+  // Show loading state during user loading or data loading
+  if (loading || (isLoading && !error)) {
     return (
       <div className="container flex h-screen items-center justify-center">
         <div className="flex flex-col items-center">
@@ -89,6 +107,21 @@ export default function DashboardPage() {
     )
   }
 
+  // Show login message if user is not found after loading is complete
+  if (!user) {
+    return (
+      <div className="container flex h-screen items-center justify-center">
+        <div className="flex flex-col items-center text-center">
+          <p className="text-lg">Please log in to view the dashboard</p>
+          <Button className="mt-4" asChild>
+            <Link href="/login">Log In</Link>
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error message if there was an error loading data
   if (error) {
     return (
       <div className="container flex h-screen items-center justify-center">

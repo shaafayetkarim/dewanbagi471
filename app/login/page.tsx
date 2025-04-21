@@ -50,10 +50,7 @@ export default function LoginPage() {
         throw new Error(data.error || "Invalid email or password")
       }
 
-      // Store the user data in localStorage for simplicity
-      localStorage.setItem("userId", data.user.id)
-      localStorage.setItem("userEmail", data.user.email)
-      localStorage.setItem("userName", data.user.name || "")
+     
 
       // Redirect to dashboard
       router.push("/dashboard")
