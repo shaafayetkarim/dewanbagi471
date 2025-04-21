@@ -40,8 +40,22 @@ model Post {
   collectionIds String[]   @db.ObjectId
   savedBy     SavedPost[]
   likes       Int          @default(0)
+  attachments Attachment[] // Add relation to attachments
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+}
+
+// New model for attachments
+model Attachment {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  fileName    String
+  fileType    String
+  fileSize    Int
+  fileUrl     String   // URL or path to the stored file
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId      String   @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Collection {

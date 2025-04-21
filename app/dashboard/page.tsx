@@ -43,7 +43,8 @@ export default function DashboardPage() {
 
   // For learning purposes, we'll hardcode a user ID
   // In a real app, you would get this from a logged-in user session
-  const userId = "67f2e83d8e5dacc6f5fbfbdb" // Replace with a real user ID from your database
+  const userId = "67fbff6fbf0eb0270d947786" // Replace with a real user ID from your database
+  
 
   useEffect(() => {
     async function fetchDashboardData() {

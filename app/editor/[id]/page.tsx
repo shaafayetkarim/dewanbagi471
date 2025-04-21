@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Save,
   ArrowLeft,
-  Image,
+  Image as ImageIcon,
   Link2,
   ListOrdered,
   Bold,
@@ -15,6 +15,10 @@ import {
   AlignCenter,
   AlignRight,
   Sparkles,
+  X,
+  Upload,
+  FileText,
+  Paperclip
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -25,17 +29,94 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { MotionDiv, MotionButton, fadeIn, slideUp } from "@/components/ui/motion"
+import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+// Maximum file size in bytes (10MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export default function EditorPage({ params }: { params: { id: string } }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
-  const [title, setTitle] = useState("Getting Started with Next.js")
-  const [content, setContent] = useState(
-    "Next.js is a React framework that enables server-side rendering and static site generation for React applications. It's designed to make it easier to build production-ready React applications by providing a set of features that are commonly needed in web applications.\n\nIn this blog post, we'll explore the key features of Next.js and how to get started with it.",
-  )
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const [title, setTitle] = useState("")
+  const [content, setContent] = useState("")
   const [status, setStatus] = useState("Needs Editing")
   const [isSaving, setIsSaving] = useState(false)
   const [isImproving, setIsImproving] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  
+  // File attachment states
+  const [attachments, setAttachments] = useState<File[]>([])
+  const [filePreview, setFilePreview] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  // Get title from URL query parameter
+  useEffect(() => {
+    const titleFromQuery = searchParams.get('title')
+    
+    if (titleFromQuery) {
+      const decodedTitle = decodeURIComponent(titleFromQuery)
+      setTitle(decodedTitle)
+      // Generate initial content based on the title
+      generateInitialContent(decodedTitle)
+    } else {
+      // Default title and content if no query parameter is provided
+      setTitle("Getting Started with Next.js")
+      setContent(
+        "Next.js is a React framework that enables server-side rendering and static site generation for React applications. It's designed to make it easier to build production-ready React applications by providing a set of features that are commonly needed in web applications.\n\nIn this blog post, we'll explore the key features of Next.js and how to get started with it."
+      )
+    }
+  }, [searchParams])
+
+  // Function to generate initial content based on the title
+  const generateInitialContent = async (title: string) => {
+    setIsGenerating(true)
+    toast({
+      title: "Generating content",
+      description: "Gemini AI is generating initial content based on your selected idea...",
+    })
+
+    try {
+      // Call the Gemini API to generate initial content based on the title
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          action: 'generate',
+          title: title 
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate initial content');
+      }
+
+      const data = await response.json();
+      setContent(data.generatedContent || "Start writing your blog post here...");
+      
+      toast({
+        title: "Content generated",
+        description: "Gemini AI has created initial content for your blog",
+      })
+    } catch (error) {
+      console.error('Error generating content:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate initial content. You can start writing from scratch.",
+        variant: "destructive",
+      })
+      setContent("Start writing your blog post here...");
+    } finally {
+      setIsGenerating(false)
+    }
+  }
 
   const handleSave = () => {
     if (!title.trim()) {
@@ -49,12 +130,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
     setIsSaving(true)
 
-    // Simulate saving - replace with actual API call
+    // Simulate saving - replace with actual API call that would also upload attachments
     setTimeout(() => {
       setIsSaving(false)
       toast({
         title: "Blog saved",
-        description: "Your blog post has been saved successfully",
+        description: `Your blog post has been saved successfully with ${attachments.length} attachment(s)`,
       })
     }, 1000)
   }
@@ -128,6 +209,76 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
   }
 
+  const handleFileClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    setUploadError(null);
+    
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError(`File size exceeds the 10MB limit. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+      return;
+    }
+    
+    // Simulate upload process
+    setIsUploading(true);
+    setUploadProgress(0);
+    
+    // Create file preview for images
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setFilePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setFilePreview(null);
+    }
+    
+    // Simulated upload progress
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 10;
+      setUploadProgress(progress);
+      
+      if (progress >= 100) {
+        clearInterval(interval);
+        setIsUploading(false);
+        setAttachments(prev => [...prev, file]);
+        toast({
+          title: "File uploaded",
+          description: `${file.name} has been attached to your blog post`,
+        });
+      }
+    }, 200);
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+    if (attachments.length === 1) {
+      setFilePreview(null);
+    }
+    toast({
+      title: "File removed",
+      description: "The attachment has been removed from your blog post",
+    });
+  }
+
+  // Helper function to format file size
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' bytes';
+    else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
   return (
     <MotionDiv initial="hidden" animate="visible" variants={slideUp} className="container mx-auto p-4 sm:p-6 md:p-8">
       <MotionDiv
@@ -157,17 +308,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               <SelectItem value="Incomplete">Incomplete</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            variant="outline"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="transition-all duration-300 hover:bg-primary/10"
-          >
-            {isSaving ? "Saving..." : "Save Draft"}
-          </Button>
-          <Button onClick={handlePublish} className="transition-all duration-300 hover:shadow-md">
-            Publish
-          </Button>
+          
         </div>
       </MotionDiv>
 
@@ -268,9 +409,17 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
             transition={{ duration: 0.2 }}
+            onClick={handleFileClick}
           >
-            <Image className="h-4 w-4" />
+            <Paperclip className="h-4 w-4" />
           </MotionButton>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            onChange={handleFileChange} 
+            accept="image/*,.pdf,.doc,.docx,.txt"
+          />
           <div className="ml-auto">
             <MotionButton
               variant="ghost"
@@ -295,11 +444,102 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         />
       </MotionDiv>
 
+      {/* File Upload Progress and Error Display */}
+      {isUploading && (
+        <MotionDiv 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4"
+        >
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Uploading...</span>
+              <span className="text-sm text-muted-foreground">{uploadProgress}%</span>
+            </div>
+            <Progress value={uploadProgress} />
+          </div>
+        </MotionDiv>
+      )}
+
+      {uploadError && (
+        <MotionDiv
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4"
+        >
+          <Alert variant="destructive">
+            <AlertDescription>{uploadError}</AlertDescription>
+          </Alert>
+        </MotionDiv>
+      )}
+
+      {/* Attachments Display */}
+      {attachments.length > 0 && (
+        <MotionDiv 
+          variants={fadeIn} 
+          transition={{ delay: 0.3 }}
+          className="mb-6"
+        >
+          <h3 className="mb-2 font-medium">Attachments ({attachments.length})</h3>
+          <div className="space-y-2">
+            {attachments.map((file, index) => (
+              <div 
+                key={index} 
+                className="flex items-center justify-between rounded-md border p-3 transition-all hover:bg-accent/50"
+              >
+                <div className="flex items-center gap-2">
+                  {file.type.startsWith('image/') ? (
+                    <ImageIcon className="h-5 w-5 text-blue-500" />
+                  ) : (
+                    <FileText className="h-5 w-5 text-orange-500" />
+                  )}
+                  <div>
+                    <p className="font-medium">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                  </div>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => removeAttachment(index)}
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          
+          {/* Image Preview */}
+          {filePreview && attachments.some(file => file.type.startsWith('image/')) && (
+            <div className="mt-4 overflow-hidden rounded-md border">
+              <div className="bg-muted p-2 text-xs font-medium">Image Preview</div>
+              <div className="p-2">
+                <img 
+                  src={filePreview} 
+                  alt="Preview" 
+                  className="max-h-60 rounded object-contain" 
+                />
+              </div>
+            </div>
+          )}
+        </MotionDiv>
+      )}
+
       <MotionDiv variants={fadeIn} transition={{ delay: 0.4 }} className="flex flex-col justify-end gap-2 sm:flex-row">
         <Button
           variant="outline"
+          onClick={handleFileClick}
+          disabled={isUploading}
+          className="transition-all duration-300 hover:bg-primary/10"
+        >
+          <Upload className="mr-2 h-4 w-4" />
+          Attach File
+        </Button>
+        <Button
+          variant="outline"
           onClick={handleSave}
-          disabled={isSaving || isImproving}
+          disabled={isSaving || isImproving || isUploading}
           className="transition-all duration-300 hover:bg-primary/10"
         >
           <Save className="mr-2 h-4 w-4" />
@@ -307,7 +547,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         </Button>
         <Button 
           onClick={handlePublish} 
-          disabled={isImproving}
+          disabled={isImproving || isUploading}
           className="transition-all duration-300 hover:shadow-md"
         >
           Publish

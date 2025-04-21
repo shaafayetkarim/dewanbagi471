@@ -113,11 +113,8 @@ export default function GeneratePage() {
       description: "Your full blog post is being generated",
     })
     
-    // Store the selected idea in localStorage to pass to editor
-    localStorage.setItem('blogTitle', selectedIdea);
-    
-    // Navigate to editor page
-    router.push("/editor/new")
+  const encodedTitle = encodeURIComponent(selectedIdea);
+    router.push(`/editor/new?title=${encodedTitle}`);
   }
 
   return (
@@ -130,10 +127,7 @@ export default function GeneratePage() {
       <h1 className="mb-6 text-3xl font-bold tracking-tight">Generate Blog Content</h1>
       
       <Tabs defaultValue="ideas" className="w-full">
-        <TabsList className="mb-6 w-full justify-start sm:w-auto">
-          <TabsTrigger value="ideas" className="transition-all duration-300">Generate Ideas</TabsTrigger>
-          <TabsTrigger value="full" className="transition-all duration-300">Full Blog Post</TabsTrigger>
-        </TabsList>
+        
         
         <TabsContent value="ideas" className="mt-6">
           <MotionDiv variants={fadeIn} transition={{ delay: 0.1 }}>
@@ -283,71 +277,7 @@ export default function GeneratePage() {
           )}
         </TabsContent>
         
-        <TabsContent value="full" className="mt-6">
-          <MotionDiv variants={fadeIn} transition={{ delay: 0.1 }}>
-            <Card className="border-none shadow-md transition-all duration-300 hover:shadow-lg">
-              <CardHeader>
-                <CardTitle>Full Blog Generator</CardTitle>
-                <CardDescription>
-                  Describe what you want to write about and we'll generate a complete blog post
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Blog Title</Label>
-                  <Input 
-                    id="title" 
-                    placeholder="Enter a title for your blog post" 
-                    className="transition-all duration-200 focus:ring-2 focus:ring-primary/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea 
-                    id="description" 
-                    placeholder="Describe what you want to write about in detail..." 
-                    className="min-h-[150px] transition-all duration-200 focus:ring-2 focus:ring-primary/50"
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="tone">Tone</Label>
-                    <select 
-                      id="tone"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-primary/50"
-                      defaultValue="professional"
-                    >
-                      <option value="professional">Professional</option>
-                      <option value="casual">Casual</option>
-                      <option value="friendly">Friendly</option>
-                      <option value="authoritative">Authoritative</option>
-                      <option value="humorous">Humorous</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="length">Length</Label>
-                    <select 
-                      id="length"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-primary/50"
-                      defaultValue="medium"
-                    >
-                      <option value="short">Short (300-500 words)</option>
-                      <option value="medium">Medium (500-800 words)</option>
-                      <option value="long">Long (800-1200 words)</option>
-                      <option value="comprehensive">Comprehensive (1200+ words)</option>
-                    </select>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button className="w-full transition-all duration-300 hover:shadow-md">
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Generate Full Blog Post
-                </Button>
-              </CardFooter>
-            </Card>
-          </MotionDiv>
-        </TabsContent>
+       
       </Tabs>
     </MotionDiv>
   )
