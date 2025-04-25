@@ -65,15 +65,17 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden md:flex md:items-center md:gap-2">
               <ModeToggle />
-              <div className="flex items-center gap-2 pl-2">
+              <div className="hidden md:flex md:items-center md:gap-2">
+              <Link href="/profile">
+            <div className="flex items-center gap-2 pl-2">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user.avatar} alt={user.name} />
                   <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <span className="hidden text-sm font-medium lg:inline-block">{user.name}</span>
               </div>
+              </Link>
               <Button
                 variant="ghost"
                 size="icon"

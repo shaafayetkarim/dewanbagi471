@@ -15,6 +15,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 });
     }
     
+    
     // Fetch user data
     const user = await prisma.user.findUnique({
       where: { id: userId },

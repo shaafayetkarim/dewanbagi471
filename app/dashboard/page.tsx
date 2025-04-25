@@ -60,11 +60,14 @@ export default function DashboardPage() {
   useEffect(() => {
     // Don't fetch data if user isn't loaded yet or doesn't exist
     if (loading || !user) return;
+
+    
     
     const userId = user.id;
     
     async function fetchDashboardData() {
       try {
+        console.log('Fetching dashboard data for user:', userId);
         setIsLoading(true)
         const response = await fetch(`/api/dashboard?userId=${userId}`)
         
