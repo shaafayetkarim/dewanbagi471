@@ -31,6 +31,26 @@ export default function SignupPage() {
     })
   }
 
+  const sendWelcomeEmail = async (name: string, email: string) => {
+    try {
+      const response = await fetch("/api/auth/send-confirmation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ name, email })
+      })
+
+      if (!response.ok) {
+        console.error("Failed to send welcome email")
+      } else {
+        console.log("Welcome email sent successfully")
+      }
+    } catch (error) {
+      console.error("Email sending error:", error)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
@@ -55,6 +75,9 @@ export default function SignupPage() {
       localStorage.setItem("userId", data.user.id)
       localStorage.setItem("userEmail", data.user.email)
       localStorage.setItem("userName", data.user.name || "")
+
+      // Send welcome email
+      await sendWelcomeEmail(formData.name, formData.email)
 
       // Redirect to dashboard
       router.push("/dashboard")
