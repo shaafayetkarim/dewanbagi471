@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { User, Mail, Lock, Upload } from "lucide-react"
 
@@ -16,28 +16,169 @@ export default function ProfilePage() {
   const router = useRouter()
   const { toast } = useToast()
   const [isSaving, setIsSaving] = useState(false)
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Mock user data - in a real app, this would come from an API
+  // User data state
   const [user, setUser] = useState({
-    name: "John Doe",
-    email: "john@example.com",
+    name: "",
+    email: "",
     avatar: "/placeholder.svg?height=100&width=100",
     subscription: "Free",
-    generationsLeft: 18,
-    generationsTotal: 20,
+    generationsLeft: 0,
+    generationsTotal: 0,
   })
 
-  const handleSaveProfile = () => {
+  // Password state
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  })
+
+  // Password validation state
+  const [passwordError, setPasswordError] = useState("")
+
+  // Fetch user data on component mount
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const response = await fetch('/api/user/profile', {
+          method: 'GET',
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch user data')
+        }
+
+        const data = await response.json()
+        setUser({
+          name: data.name || "",
+          email: data.email || "",
+          avatar: data.avatar || "/placeholder.svg?height=100&width=100",
+          subscription: data.subscription || "Free",
+          generationsLeft: data.generationsLeft || 0,
+          generationsTotal: data.generationsTotal || 0,
+        })
+      } catch (error) {
+        console.error('Error fetching user data:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load user profile",
+          variant: "destructive"
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchUserData()
+  }, [toast])
+
+  const handleSaveProfile = async () => {
     setIsSaving(true)
 
-    // Simulate saving - replace with actual API call
-    setTimeout(() => {
-      setIsSaving(false)
+    try {
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: user.name,
+          email: user.email,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update profile')
+      }
+
       toast({
         title: "Profile updated",
         description: "Your profile has been updated successfully",
       })
-    }, 1000)
+
+      // Update user state with the returned data
+      if (data.user) {
+        setUser(prev => ({
+          ...prev,
+          name: data.user.name,
+          email: data.user.email,
+          avatar: data.user.avatar || prev.avatar,
+          subscription: data.user.subscription || prev.subscription,
+          generationsLeft: data.user.generationsLeft || prev.generationsLeft,
+          generationsTotal: data.user.generationsTotal || prev.generationsTotal,
+        }))
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update profile",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handlePasswordChange = async () => {
+    // Reset error
+    setPasswordError("")
+
+    // Validate passwords
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError("New passwords don't match")
+      return
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters")
+      return
+    }
+
+    setIsUpdatingPassword(true)
+
+    try {
+      const response = await fetch('/api/user/password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update password')
+      }
+
+      toast({
+        title: "Password updated",
+        description: "Your password has been updated successfully",
+      })
+
+      // Reset password fields
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update password",
+        variant: "destructive"
+      })
+    } finally {
+      setIsUpdatingPassword(false)
+    }
   }
 
   const handleUpgradeSubscription = () => {
@@ -48,6 +189,10 @@ export default function ProfilePage() {
     })
 
     // In a real app, redirect to payment page
+  }
+
+  if (isLoading) {
+    return <div className="container mx-auto p-6 flex justify-center">Loading profile...</div>
   }
 
   return (
@@ -97,7 +242,6 @@ export default function ProfilePage() {
           <TabsList className="mb-4">
             <TabsTrigger value="personal">Personal Info</TabsTrigger>
             <TabsTrigger value="password">Password</TabsTrigger>
-            <TabsTrigger value="preferences">Preferences</TabsTrigger>
           </TabsList>
 
           <TabsContent value="personal">
@@ -171,7 +315,13 @@ export default function ProfilePage() {
                     <span className="flex items-center rounded-l-md border border-r-0 bg-muted px-3 text-muted-foreground">
                       <Lock className="h-4 w-4" />
                     </span>
-                    <Input id="current-password" type="password" className="rounded-l-none" />
+                    <Input 
+                      id="current-password" 
+                      type="password" 
+                      className="rounded-l-none"
+                      value={passwordData.currentPassword}
+                      onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -180,7 +330,13 @@ export default function ProfilePage() {
                     <span className="flex items-center rounded-l-md border border-r-0 bg-muted px-3 text-muted-foreground">
                       <Lock className="h-4 w-4" />
                     </span>
-                    <Input id="new-password" type="password" className="rounded-l-none" />
+                    <Input 
+                      id="new-password" 
+                      type="password" 
+                      className="rounded-l-none"
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -189,62 +345,23 @@ export default function ProfilePage() {
                     <span className="flex items-center rounded-l-md border border-r-0 bg-muted px-3 text-muted-foreground">
                       <Lock className="h-4 w-4" />
                     </span>
-                    <Input id="confirm-password" type="password" className="rounded-l-none" />
+                    <Input 
+                      id="confirm-password" 
+                      type="password" 
+                      className="rounded-l-none"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                    />
                   </div>
                 </div>
+                {passwordError && (
+                  <p className="text-sm text-red-500">{passwordError}</p>
+                )}
               </CardContent>
               <CardFooter>
-                <Button>Update Password</Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="preferences">
-            <Card>
-              <CardHeader>
-                <CardTitle>Preferences</CardTitle>
-                <CardDescription>Customize your experience</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="default-tone">Default Blog Tone</Label>
-                  <select
-                    id="default-tone"
-                    className="w-full rounded-md border border-input bg-background px-3 py-2"
-                    defaultValue="professional"
-                  >
-                    <option value="professional">Professional</option>
-                    <option value="casual">Casual</option>
-                    <option value="friendly">Friendly</option>
-                    <option value="authoritative">Authoritative</option>
-                    <option value="humorous">Humorous</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="default-length">Default Blog Length</Label>
-                  <select
-                    id="default-length"
-                    className="w-full rounded-md border border-input bg-background px-3 py-2"
-                    defaultValue="medium"
-                  >
-                    <option value="short">Short (300-500 words)</option>
-                    <option value="medium">Medium (500-800 words)</option>
-                    <option value="long">Long (800-1200 words)</option>
-                    <option value="comprehensive">Comprehensive (1200+ words)</option>
-                  </select>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="email-notifications"
-                    className="h-4 w-4 rounded border-gray-300"
-                    defaultChecked
-                  />
-                  <Label htmlFor="email-notifications">Receive email notifications for blog generation</Label>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button>Save Preferences</Button>
+                <Button onClick={handlePasswordChange} disabled={isUpdatingPassword}>
+                  {isUpdatingPassword ? "Updating..." : "Update Password"}
+                </Button>
               </CardFooter>
             </Card>
           </TabsContent>
@@ -253,4 +370,3 @@ export default function ProfilePage() {
     </div>
   )
 }
-
