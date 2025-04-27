@@ -1,9 +1,8 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { SearchIcon, Filter, FileText, Calendar, Tag, Edit } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -14,75 +13,111 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { useToast } from "@/hooks/use-toast"
+
+interface Post {
+  id: string
+  title: string
+  excerpt: string
+  status: string
+  date: string
+  tags: string[]
+}
 
 export default function SearchPage() {
+  const { toast } = useToast()
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("all")
+  const [isLoading, setIsLoading] = useState(true)
+  const [posts, setPosts] = useState<Post[]>([])
+  const [allTags, setAllTags] = useState<string[]>([])
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
 
-  // Mock data - in a real app, this would come from an API
-  const searchResults = [
-    {
-      id: 1,
-      title: "Getting Started with Next.js",
-      excerpt: "Learn how to build modern web applications with Next.js, the React framework for production.",
-      status: "Published",
-      date: "2023-05-15",
-      tags: ["Next.js", "React", "Web Development"],
-    },
-    {
-      id: 2,
-      title: "Understanding TypeScript for Beginners",
-      excerpt: "A comprehensive guide to TypeScript fundamentals for JavaScript developers.",
-      status: "Draft",
-      date: "2023-05-10",
-      tags: ["TypeScript", "JavaScript", "Programming"],
-    },
-    {
-      id: 3,
-      title: "The Future of AI in Content Creation",
-      excerpt: "Exploring how artificial intelligence is transforming the way we create and consume content.",
-      status: "Published",
-      date: "2023-05-05",
-      tags: ["AI", "Content Creation", "Technology"],
-    },
-    {
-      id: 4,
-      title: "10 SEO Tips for Better Blog Performance",
-      excerpt: "Practical SEO strategies to improve your blog's visibility and drive more organic traffic.",
-      status: "Draft",
-      date: "2023-05-01",
-      tags: ["SEO", "Marketing", "Blogging"],
-    },
-  ]
+  // Function to fetch posts
+  const fetchPosts = async () => {
+    setIsLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (searchQuery) params.append("query", searchQuery)
+      if (statusFilter !== "all") params.append("status", statusFilter)
+      if (dateFilter !== "all") params.append("dateFilter", dateFilter)
+      
+      const response = await fetch(`/api/posts?${params.toString()}`)
+      
+      if (response.status === 401) {
+        toast({
+          title: "Session expired",
+          description: "Please login again to continue",
+          variant: "destructive"
+        })
+        // Redirect to login page
+        router.push('/login')
+        return
+      }
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch posts')
+      }
+      
+      const data = await response.json()
+      setPosts(data)
+      
+      // Extract all unique tags
+      const tags = Array.from(new Set(data.flatMap((post: Post) => post.tags)))
+      setAllTags(tags)
+    } catch (error) {
+      console.error('Error fetching posts:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load posts. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
-  // Filter search results based on filters
-  const filteredResults = searchResults.filter((result) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      result.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      result.excerpt.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      result.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+  // Initial fetch on component mount
+  useEffect(() => {
+    fetchPosts()
+  }, [])
 
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "published" && result.status === "Published") ||
-      (statusFilter === "draft" && result.status === "Draft")
+  // Fetch when filters change - with debounce for search query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fetchPosts()
+    }, 300)
 
-    const matchesDate =
-      dateFilter === "all" ||
-      (dateFilter === "last-week" && new Date(result.date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)) ||
-      (dateFilter === "last-month" && new Date(result.date) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [searchQuery, statusFilter, dateFilter])
 
-    return matchesSearch && matchesStatus && matchesDate
-  })
+  const handleTagToggle = (tag: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag) 
+        : [...prev, tag]
+    )
+  }
 
-  // Available tags for filtering
-  const allTags = Array.from(new Set(searchResults.flatMap((result) => result.tags)))
+  // Filter posts by selected tags
+  const filteredPosts = selectedTags.length > 0
+    ? posts.filter(post => selectedTags.some(tag => post.tags.includes(tag)))
+    : posts
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    // In a real app, this would trigger an API call with the search query
+    fetchPosts()
+  }
+
+  const resetFilters = () => {
+    setSearchQuery("")
+    setStatusFilter("all")
+    setDateFilter("all")
+    setSelectedTags([])
   }
 
   return (
@@ -141,36 +176,28 @@ export default function SearchPage() {
               </SheetHeader>
               <div className="py-4">
                 <h3 className="mb-2 text-sm font-medium">Tags</h3>
-                <div className="space-y-2">
-                  {allTags.map((tag) => (
-                    <div key={tag} className="flex items-center space-x-2">
-                      <Checkbox id={`tag-${tag}`} />
-                      <Label htmlFor={`tag-${tag}`}>{tag}</Label>
-                    </div>
-                  ))}
-                </div>
-
-                <Separator className="my-4" />
-
-                <h3 className="mb-2 text-sm font-medium">Word Count</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="word-count-short" />
-                    <Label htmlFor="word-count-short">Short (&lt; 500 words)</Label>
+                {allTags.length > 0 ? (
+                  <div className="space-y-2">
+                    {allTags.map((tag) => (
+                      <div key={tag} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`tag-${tag}`} 
+                          checked={selectedTags.includes(tag)}
+                          onCheckedChange={() => handleTagToggle(tag)}
+                        />
+                        <Label htmlFor={`tag-${tag}`}>{tag}</Label>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="word-count-medium" />
-                    <Label htmlFor="word-count-medium">Medium (500-1000 words)</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="word-count-long" />
-                    <Label htmlFor="word-count-long">Long (&gt; 1000 words)</Label>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No tags available</p>
+                )}
 
                 <div className="mt-6 flex justify-end gap-2">
-                  <Button variant="outline">Reset</Button>
-                  <Button>Apply Filters</Button>
+                  <Button variant="outline" onClick={resetFilters}>Reset</Button>
+                  <SheetTrigger asChild>
+                    <Button>Apply Filters</Button>
+                  </SheetTrigger>
                 </div>
               </div>
             </SheetContent>
@@ -178,7 +205,11 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {filteredResults.length === 0 ? (
+      {isLoading ? (
+        <div className="flex justify-center p-8">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        </div>
+      ) : filteredPosts.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-6">
             <p className="mb-4 text-center text-muted-foreground">No results found matching your criteria</p>
@@ -189,41 +220,43 @@ export default function SearchPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {filteredResults.map((result) => (
-            <Card key={result.id}>
+          {filteredPosts.map((post) => (
+            <Card key={post.id}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-xl">{result.title}</CardTitle>
+                    <CardTitle className="text-xl">{post.title}</CardTitle>
                     <CardDescription className="mt-1 flex items-center gap-2">
                       <Calendar className="h-3 w-3" />
-                      {new Date(result.date).toLocaleDateString()}
+                      {new Date(post.date).toLocaleDateString()}
                       <FileText className="ml-2 h-3 w-3" />
-                      {result.status}
+                      {post.status.charAt(0).toUpperCase() + post.status.slice(1)}
                     </CardDescription>
                   </div>
                   <Button variant="outline" size="sm" asChild>
-                    <Link href={`/editor/${result.id}`}>
+                    <Link href={`/editor/${post.id}`}>
                       <Edit className="mr-2 h-4 w-4" /> Edit
                     </Link>
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">{result.excerpt}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {result.tags.map((tag) => (
-                    <div key={tag} className="flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs">
-                      <Tag className="mr-1 h-3 w-3" />
-                      {tag}
-                    </div>
-                  ))}
-                </div>
+                <p className="text-muted-foreground">{post.excerpt}</p>
+                {post.tags.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {post.tags.map((tag) => (
+                      <div key={`${post.id}-${tag}`} className="flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs">
+                        <Tag className="mr-1 h-3 w-3" />
+                        {tag}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
               <CardFooter>
                 <Button variant="outline" className="w-full" asChild>
-                  <Link href={result.status === "Published" ? `/preview/${result.id}` : `/editor/${result.id}`}>
-                    {result.status === "Published" ? "View Post" : "Continue Editing"}
+                  <Link href={post.status === "published" ? `/preview/${post.id}` : `/editor/${post.id}`}>
+                    {post.status === "published" ? "View Post" : "Continue Editing"}
                   </Link>
                 </Button>
               </CardFooter>
@@ -234,4 +267,3 @@ export default function SearchPage() {
     </div>
   )
 }
-
