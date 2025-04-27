@@ -140,7 +140,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }, 1000)
   }
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!title.trim()) {
       toast({
         title: "Title required",
@@ -149,15 +149,47 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       })
       return
     }
-
-    // Simulate publishing - replace with actual API call
-    toast({
-      title: "Blog published",
-      description: "Your blog post has been published successfully",
-    })
-
-    // Navigate to dashboard
-    router.push("/dashboard")
+  
+    try {
+      // Create FormData and append the post data
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('content', content);
+      
+      // Append all attachments
+      attachments.forEach((file) => {
+        formData.append('files', file);
+      });
+  
+      // Send the request to publish
+      const response = await fetch('/api/posts/publish', {
+        method: 'POST',
+        body: formData,
+      });
+  
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to publish post');
+      }
+  
+      const data = await response.json();
+  
+      toast({
+        title: "Blog published",
+        description: "Your blog post has been published successfully",
+      });
+  
+      // Navigate to dashboard
+      router.push("/dashboard");
+  
+    } catch (error) {
+      console.error('Error publishing:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to publish post",
+        variant: "destructive",
+      });
+    }
   }
 
   const handleAIImprove = async () => {

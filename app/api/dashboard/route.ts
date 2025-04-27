@@ -1,20 +1,39 @@
 // app/api/dashboard/route.ts
 import { NextResponse } from "next/server";
+import { cookies } from 'next/headers';
+import { jwtVerify } from 'jose';
 import { PrismaClient } from "@prisma/client";
-
 
 const prisma = new PrismaClient();
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    // Get the token from cookies
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth-token')?.value;
+
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
     }
-    
+
+    // Verify the token
+    const { payload } = await jwtVerify(
+      token,
+      new TextEncoder().encode(process.env.JWT_SECRET || '')
+    );
+
+    if (!payload || typeof payload !== 'object' || !('id' in payload)) {
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      );
+    }
+
+    const userId = payload.id as string;
+    console.log("User ID from token:", userId);
     
     // Fetch user data
     const user = await prisma.user.findUnique({
@@ -99,7 +118,10 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("Dashboard API error:", error);
-    return NextResponse.json({ error: "Failed to fetch dashboard data" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch dashboard data" },
+      { status: 500 }
+    );
   }
 }
 

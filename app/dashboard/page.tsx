@@ -45,31 +45,19 @@ interface User {
   generationsTotal: number
 }
 
-interface UseUserReturn {
-  user: User | null
-  loading: boolean
-}
-
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { user, loading } = useUser()
 
-  // Fixed: Move this inside the effect to ensure it only runs after user is loaded
   useEffect(() => {
-    // Don't fetch data if user isn't loaded yet or doesn't exist
-    if (loading || !user) return;
-
-    
-    
-    const userId = user.id;
+    if (loading) return;
     
     async function fetchDashboardData() {
       try {
-        console.log('Fetching dashboard data for user:', userId);
         setIsLoading(true)
-        const response = await fetch(`/api/dashboard?userId=${userId}`)
+        const response = await fetch('/api/dashboard')
         
         if (!response.ok) {
           const errorData = await response.json()
@@ -82,13 +70,12 @@ export default function DashboardPage() {
         console.error('Error fetching dashboard data:', err)
         setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
       } finally {
-        // Fixed: Using the correct setter function
         setIsLoading(false)
       }
     }
 
     fetchDashboardData()
-  }, [user, loading]) // Include both user and loading in the dependencies
+  }, [loading])
 
   // Create stats array from data
   const stats = data ? [
@@ -148,7 +135,7 @@ export default function DashboardPage() {
       <MotionDiv variants={slideUp} className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's an overview of your blog content.</p>
+          <p className="text-muted-foreground">Welcome back, {user.name}! Here's an overview of your blog content.</p>
         </div>
         <Button asChild className="group transition-all duration-300 hover:shadow-md">
           <Link href="/generate" className="flex items-center">
