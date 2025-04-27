@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "./generated/prisma-client"
 }
 
 datasource db {
@@ -28,23 +29,23 @@ model User {
 }
 
 model Post {
-  id          String       @id @default(auto()) @map("_id") @db.ObjectId
-  title       String
-  content     String
-  excerpt     String?
-  status      String       @default("draft") // draft, published
-  wordCount   Int?
-  author      User         @relation(fields: [authorId], references: [id])
-  authorId    String       @db.ObjectId
-  collections Collection[] @relation(fields: [collectionIds], references: [id])
-  collectionIds String[]   @db.ObjectId
-  savedBy     SavedPost[]
-  likes       Int          @default(0)
-  attachments Attachment[] // Add relation to attachments
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  title         String
+  content       String
+  excerpt       String?
+  status        String       @default("draft") // Only "draft" or "published"
+  writingPhase  String       @default("Needs Editing") // "Needs Editing", "Ready to Publish", "Incomplete"
+  wordCount     Int?
+  author        User         @relation(fields: [authorId], references: [id])
+  authorId      String       @db.ObjectId
+  collections   Collection[] @relation(fields: [collectionIds], references: [id])
+  collectionIds String[]     @db.ObjectId
+  savedBy       SavedPost[]
+  likes         Int          @default(0)
+  attachments   Attachment[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 }
-
 // New model for attachments
 model Attachment {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -57,6 +58,7 @@ model Attachment {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
 
 model Collection {
   id          String     @id @default(auto()) @map("_id") @db.ObjectId
@@ -80,4 +82,5 @@ model SavedPost {
 
   @@unique([userId, postId])
 }
+
 

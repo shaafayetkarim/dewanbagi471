@@ -118,7 +118,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       toast({
         title: "Title required",
@@ -127,19 +127,51 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       })
       return
     }
-
+  
     setIsSaving(true)
-
-    // Simulate saving - replace with actual API call that would also upload attachments
-    setTimeout(() => {
-      setIsSaving(false)
+  
+    try {
+      // Create FormData and append the post data
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('content', content);
+      formData.append('status', status); // Current writing phase from dropdown
+      
+      // Append all attachments
+      attachments.forEach((file) => {
+        formData.append('files', file);
+      });
+  
+      // Send the request to save draft
+      const response = await fetch('/api/posts/draft', {
+        method: 'POST',
+        body: formData,
+      });
+  
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save draft');
+      }
+  
+      const data = await response.json();
+  
       toast({
-        title: "Blog saved",
-        description: `Your blog post has been saved successfully with ${attachments.length} attachment(s)`,
-      })
-    }, 1000)
+        title: "Draft saved",
+        description: `Your draft has been saved in "${status}" phase`,
+      });
+  
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save draft",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   }
-
+  
   const handlePublish = async () => {
     if (!title.trim()) {
       toast({
@@ -150,8 +182,17 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       return
     }
   
+    // Only allow publishing if writing phase is "Ready to Publish"
+    if (status !== "Ready to Publish") {
+      toast({
+        title: "Cannot publish",
+        description: "Post must be in 'Ready to Publish' phase before publishing",
+        variant: "destructive",
+      })
+      return
+    }
+  
     try {
-      // Create FormData and append the post data
       const formData = new FormData();
       formData.append('title', title);
       formData.append('content', content);
@@ -161,7 +202,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         formData.append('files', file);
       });
   
-      // Send the request to publish
       const response = await fetch('/api/posts/publish', {
         method: 'POST',
         body: formData,
