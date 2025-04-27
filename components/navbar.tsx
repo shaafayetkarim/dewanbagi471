@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { PenTool, Menu, X, LogOut , search } from 'lucide-react'
-import { useState } from "react"
+import { PenTool, Menu, X, LogOut } from 'lucide-react'
+import { useState, useEffect } from "react"
 
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
@@ -17,26 +17,110 @@ export function Navbar() {
   const router = useRouter()
   const { toast } = useToast()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-
-  // Don't show navbar on login/signup pages
-  if (pathname === "/login" || pathname === "/signup" || pathname === "/") {
-    return null
-  }
-
-  // Mock user data - in a real app, this would come from auth context
-  const user = {
-    name: "John Doe",
-    email: "john@example.com",
+  const [user, setUser] = useState({
+    name: "User",
+    email: "",
     avatar: "/placeholder.svg?height=40&width=40",
+    role: "user",
+    subscription: "free"
+  })
+  const [loading, setLoading] = useState(true)
+
+  // Determine if we should show the navbar
+  const shouldShowNavbar = !['/', '/login', '/signup'].includes(pathname);
+
+  useEffect(() => {
+    // Skip fetching user data if we're on login/signup/home pages
+    if (!shouldShowNavbar) {
+      setLoading(false);
+      return;
+    }
+    
+    // Get user data from profile API
+    const fetchUserProfile = async () => {
+      try {
+        const response = await fetch('/api/user/profile', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
+        
+        if (!response.ok) {
+          // If unauthorized, redirect to login
+          if (response.status === 401) {
+            router.push('/login')
+            return
+          }
+          throw new Error('Failed to fetch user data')
+        }
+        
+        const userData = await response.json()
+        
+        setUser({
+          name: userData.name || "User",
+          email: userData.email,
+          avatar: userData.avatar || "/placeholder.svg?height=40&width=40",
+          role: userData.role || "user",
+          subscription: userData.subscription || "free"
+        })
+      } catch (error) {
+        console.error('Error fetching user data:', error)
+        // If there's an error, we could redirect to login
+        // router.push('/login')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUserProfile()
+  }, [router, pathname, shouldShowNavbar])
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      // Create a response to clear the cookie
+      document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      
+      // Redirect to login page
+      router.push('/login')
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out",
+      })
+    } catch (error) {
+      console.error('Logout error:', error)
+      toast({
+        title: "Logout failed",
+        description: "There was a problem logging out",
+        variant: "destructive"
+      })
+    }
   }
 
-  const navItems = [
+  // Don't render anything if we're on login/signup/home pages
+  if (!shouldShowNavbar) {
+    return null;
+  }
+
+  // Base navigation items for all users
+  const baseNavItems = [
     { name: "Dashboard", href: "/dashboard" },
     { name: "Generate", href: "/generate" },
     { name: "Drafts", href: "/drafts" },
-    { name: "Collections", href: "/collections" },
     { name: "Search", href: "/search" },
   ]
+  
+  // Add Collections item only if user is admin or has premium subscription
+  const navItems = [...baseNavItems]
+  if (user.role === "admin" || user.subscription === "premium") {
+    // Insert Collections before Search (which is the last item)
+    navItems.splice(navItems.length - 1, 0, { name: "Collections", href: "/collections" })
+  }
+
+  if (loading) {
+    return <div className="h-16 border-b bg-background/95"></div> // Simple loading state
+  }
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -81,14 +165,7 @@ export function Navbar() {
                 variant="ghost"
                 size="icon"
                 className="text-muted-foreground hover:text-destructive"
-                onClick={() => {
-                  // Add actual logout logic here
-                  router.push('/login');
-                  toast({
-                    title: "Logged out",
-                    description: "You have been successfully logged out",
-                  });
-                }}
+                onClick={handleLogout}
               >
                 <LogOut className="h-4 w-4" />
                 <span className="sr-only">Log out</span>
@@ -141,15 +218,7 @@ export function Navbar() {
                   variant="ghost"
                   size="icon"
                   className="text-muted-foreground hover:text-destructive"
-                  onClick={() => {
-                    // Add actual logout logic here
-                    router.push('/login');
-                    toast({
-                      title: "Logged out",
-                      description: "You have been successfully logged out",
-                    });
-                    setMobileMenuOpen(false);
-                  }}
+                  onClick={handleLogout}
                 >
                   <LogOut className="h-4 w-4" />
                   <span className="sr-only">Log out</span>
@@ -162,4 +231,3 @@ export function Navbar() {
     </header>
   )
 }
-

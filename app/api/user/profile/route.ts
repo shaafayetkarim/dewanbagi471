@@ -44,6 +44,7 @@ export async function GET(request: Request) {
         name: true,
         email: true,
         avatar: true,
+        role: true, // Add role field to be returned
         subscription: true,
         generationsLeft: true,
         generationsTotal: true,
@@ -133,6 +134,7 @@ export async function PUT(request: Request) {
           name: updatedUser.name,
           email: updatedUser.email,
           avatar: updatedUser.avatar,
+          role: updatedUser.role,  // Add role field to response
           subscription: updatedUser.subscription,
           generationsLeft: updatedUser.generationsLeft,
           generationsTotal: updatedUser.generationsTotal
