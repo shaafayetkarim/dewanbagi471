@@ -213,6 +213,27 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       }
   
       const data = await response.json();
+      
+      // Send notification email when post is published
+      try {
+        await fetch('/api/send-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            subject: `New Blog Published: ${title}`,
+            blogTitle: title,
+            blogExcerpt: content.slice(0, 150) + (content.length > 150 ? '...' : ''),
+            postId: data.postId, // Assuming the API returns the post ID
+          }),
+        });
+        
+        console.log('Publication notification email sent');
+      } catch (emailError) {
+        console.error('Failed to send email notification:', emailError);
+        // Don't block the publish process if email fails
+      }
   
       toast({
         title: "Blog published",

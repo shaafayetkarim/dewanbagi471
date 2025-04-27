@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { PenTool, Menu, X, LogOut } from 'lucide-react'
+import { PenTool, Menu, X, LogOut , search } from 'lucide-react'
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,7 @@ export function Navbar() {
     { name: "Generate", href: "/generate" },
     { name: "Drafts", href: "/drafts" },
     { name: "Collections", href: "/collections" },
+    { name: "Search", href: "/search" },
   ]
 
   return (

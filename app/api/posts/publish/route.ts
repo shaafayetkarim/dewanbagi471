@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 export async function POST(request: Request) {
   try {
     // Get token from cookies
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth-token')?.value;
 
     if (!token) {
