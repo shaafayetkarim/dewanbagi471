@@ -12,12 +12,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useToast } from "@/hooks/use-toast"
 
+interface UserData {
+  name: string;
+  email: string;
+  avatar?: string;
+  role: string;
+  subscription?: string;
+}
+
 export function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [user, setUser] = useState({
+  const [user, setUser] = useState<UserData>({
     name: "User",
     email: "",
     avatar: "/placeholder.svg?height=40&width=40",
@@ -30,51 +38,84 @@ export function Navbar() {
   const shouldShowNavbar = !['/', '/login', '/signup'].includes(pathname);
 
   useEffect(() => {
-    // Skip fetching user data if we're on login/signup/home pages
+    let mounted = true;
+
     if (!shouldShowNavbar) {
       setLoading(false);
       return;
     }
     
-    // Get user data from profile API
     const fetchUserProfile = async () => {
       try {
-        const response = await fetch('/api/user/profile', {
+        console.log('Fetching user profile...');
+        
+        const response = await fetch('/api/auth/user', {
           method: 'GET',
+          credentials: 'include',
           headers: {
+            'Accept': 'application/json',
             'Content-Type': 'application/json',
-          }
-        })
+          },
+        });
+        
+        console.log('Response status:', response.status);
         
         if (!response.ok) {
-          // If unauthorized, redirect to login
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Response not OK:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorData
+          });
+          
           if (response.status === 401) {
-            router.push('/login')
-            return
+            console.log('Unauthorized, redirecting to login...');
+            router.push('/login');
+            return;
           }
-          throw new Error('Failed to fetch user data')
+          
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const userData = await response.json()
+        const data = await response.json();
+        console.log('User data received:', data);
         
-        setUser({
-          name: userData.name || "User",
-          email: userData.email,
-          avatar: userData.avatar || "/placeholder.svg?height=40&width=40",
-          role: userData.role || "user",
-          subscription: userData.subscription || "free"
-        })
+        if (mounted) {
+          setUser({
+            name: data.user?.name || "User",
+            email: data.user?.email || "",
+            avatar: data.user?.avatar || "/placeholder.svg?height=40&width=40",
+            role: data.user?.role || "user",
+            subscription: data.user?.subscription || "free"
+          });
+        }
       } catch (error) {
-        console.error('Error fetching user data:', error)
-        // If there's an error, we could redirect to login
-        // router.push('/login')
+        console.error('Fetch error details:', error);
+        
+        // Show error toast
+        toast({
+          title: "Error loading profile",
+          description: "Please try refreshing the page",
+          variant: "destructive"
+        });
+        
+        // Only redirect on auth errors
+        if (error instanceof Error && error.message.includes('401')) {
+          router.push('/login');
+        }
       } finally {
-        setLoading(false)
+        if (mounted) {
+          setLoading(false);
+        }
       }
-    }
+    };
 
-    fetchUserProfile()
-  }, [router, pathname, shouldShowNavbar])
+    fetchUserProfile();
+
+    return () => {
+      mounted = false;
+    };
+  }, [router, pathname, shouldShowNavbar, toast]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -97,33 +138,29 @@ export function Navbar() {
       })
     }
   }
-
-  // Don't render anything if we're on login/signup/home pages
   if (!shouldShowNavbar) {
     return null;
   }
 
-  // Base navigation items for all users
   const baseNavItems = [
     { name: "Dashboard", href: "/dashboard" },
     { name: "Generate", href: "/generate" },
     { name: "Drafts", href: "/drafts" },
     { name: "Search", href: "/search" },
-  ]
+  ];
   
-  // Add Collections item only if user is admin or has premium subscription
-  const navItems = [...baseNavItems]
+  const navItems = [...baseNavItems];
   if (user.role === "admin" || user.subscription === "premium") {
-    // Insert Collections before Search (which is the last item)
-    navItems.splice(navItems.length - 1, 0, { name: "Collections", href: "/collections" })
+    navItems.splice(navItems.length - 1, 0, { name: "Collections", href: "/collections" });
   }
 
   if (loading) {
-    return <div className="h-16 border-b bg-background/95"></div> // Simple loading state
+    return <div className="h-16 border-b bg-background/95"></div>;
   }
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      {/* Rest of the JSX remains the same */}
       <div className="mx-auto max-w-[2000px]">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2 md:gap-6">
@@ -150,16 +187,16 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-2">
-              <ModeToggle />
-              <div className="hidden md:flex md:items-center md:gap-2">
+            <ModeToggle />
+            <div className="hidden md:flex md:items-center md:gap-2">
               <Link href="/profile">
-            <div className="flex items-center gap-2 pl-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <span className="hidden text-sm font-medium lg:inline-block">{user.name}</span>
-              </div>
+                <div className="flex items-center gap-2 pl-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user.avatar} alt={user.name} />
+                    <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <span className="hidden text-sm font-medium lg:inline-block">{user.name}</span>
+                </div>
               </Link>
               <Button
                 variant="ghost"
@@ -176,21 +213,25 @@ export function Navbar() {
               <SidebarTrigger />
             </div>
 
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="md:hidden" 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Mobile menu */}
       {mobileMenuOpen && (
         <MotionDiv
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="container border-t md:hidden"
-            >
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="container border-t md:hidden"
+        >
           <div className="flex flex-col space-y-3 py-4">
             {navItems.map((item) => (
               <Link
@@ -229,5 +270,5 @@ export function Navbar() {
         </MotionDiv>
       )}
     </header>
-  )
+  );
 }
