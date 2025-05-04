@@ -168,7 +168,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "D:\\ai blog\\dewanbagi71-d20c1a408d2c143170b1c8b599c784cab2d71080\\prisma\\generated\\prisma-client",
+      "value": "f:\\dewanbagi71-d20c1a408d2c143170b1c8b599c784cab2d71080\\prisma\\generated\\prisma-client",
       "fromEnvVar": null
     },
     "config": {
@@ -182,11 +182,11 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "D:\\ai blog\\dewanbagi71-d20c1a408d2c143170b1c8b599c784cab2d71080\\prisma\\schema.prisma",
+    "sourceFilePath": "f:\\dewanbagi71-d20c1a408d2c143170b1c8b599c784cab2d71080\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
-    "rootEnvPath": "../../../.env",
+    "rootEnvPath": null,
     "schemaEnvPath": "../../../.env"
   },
   "relativePath": "../..",

@@ -170,26 +170,8 @@ export default function DraftsPage() {
                       <Edit className="mr-2 h-4 w-4" /> Edit
                     </Link>
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 transition-all duration-300 hover:bg-primary/10"
-                    asChild
-                  >
-                    <Link href={`/preview/${draft.id}`}>
-                      <Eye className="mr-2 h-4 w-4" /> Preview
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 transition-all duration-300 hover:bg-primary/10"
-                    asChild
-                  >
-                    <Link href={`/collections?draft=${draft.id}`}>
-                      <FolderPlus className="mr-2 h-4 w-4" /> Add to Collection
-                    </Link>
-                  </Button>
+                  
+                  
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
