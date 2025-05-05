@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server'
 import {SignJWT, jwtVerify, type JWTPayload} from 'jose';
 
 // Define which paths require authentication
-const protectedPaths = ['/dashboard', '/profile', '/posts/create']
+const protectedPaths = [ null]
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
