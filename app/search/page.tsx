@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { SearchIcon, Filter, FileText, Calendar, Tag, Edit } from "lucide-react"
+import { SearchIcon, Filter, FileText, Calendar, Tag, Edit, FolderPlus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useToast } from "@/hooks/use-toast"
+import { AddToCollectionDialog } from "@/components/add-to-collection"
 
 interface Post {
   id: string
@@ -22,6 +23,7 @@ interface Post {
   status: string
   date: string
   tags: string[]
+  collections?: string[]
 }
 
 export default function SearchPage() {
@@ -34,6 +36,7 @@ export default function SearchPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [allTags, setAllTags] = useState<string[]>([])
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null)
 
   // Function to fetch posts
   const fetchPosts = async () => {
@@ -43,6 +46,7 @@ export default function SearchPage() {
       if (searchQuery) params.append("query", searchQuery)
       if (statusFilter !== "all") params.append("status", statusFilter)
       if (dateFilter !== "all") params.append("dateFilter", dateFilter)
+      if (selectedTags.length > 0) params.append("tags", selectedTags.join(","))
       
       const response = await fetch(`/api/posts?${params.toString()}`)
       
@@ -52,7 +56,6 @@ export default function SearchPage() {
           description: "Please login again to continue",
           variant: "destructive"
         })
-        // Redirect to login page
         router.push('/login')
         return
       }
@@ -93,7 +96,7 @@ export default function SearchPage() {
     return () => {
       clearTimeout(handler)
     }
-  }, [searchQuery, statusFilter, dateFilter])
+  }, [searchQuery, statusFilter, dateFilter, selectedTags])
 
   const handleTagToggle = (tag: string) => {
     setSelectedTags(prev => 
@@ -160,6 +163,7 @@ export default function SearchPage() {
               <SelectItem value="all">All Time</SelectItem>
               <SelectItem value="last-week">Last Week</SelectItem>
               <SelectItem value="last-month">Last Month</SelectItem>
+              <SelectItem value="last-year">Last Year</SelectItem>
             </SelectContent>
           </Select>
 
@@ -233,11 +237,23 @@ export default function SearchPage() {
                       {post.status.charAt(0).toUpperCase() + post.status.slice(1)}
                     </CardDescription>
                   </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/editor/${post.id}`}>
-                      <Edit className="mr-2 h-4 w-4" /> Edit
-                    </Link>
-                  </Button>
+                  <div className="flex gap-2">
+                    {post.status === "published" && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setSelectedPostId(post.id)}
+                      >
+                        <FolderPlus className="mr-2 h-4 w-4" />
+                        Add to Collection
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/editor/${post.id}`}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -245,7 +261,10 @@ export default function SearchPage() {
                 {post.tags.length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-2">
                     {post.tags.map((tag) => (
-                      <div key={`${post.id}-${tag}`} className="flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs">
+                      <div 
+                        key={`${post.id}-${tag}`} 
+                        className="flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs"
+                      >
                         <Tag className="mr-1 h-3 w-3" />
                         {tag}
                       </div>
@@ -264,6 +283,12 @@ export default function SearchPage() {
           ))}
         </div>
       )}
+
+      <AddToCollectionDialog
+        postId={selectedPostId!}
+        isOpen={!!selectedPostId}
+        onClose={() => setSelectedPostId(null)}
+      />
     </div>
   )
 }

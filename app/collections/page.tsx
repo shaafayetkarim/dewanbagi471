@@ -1,13 +1,10 @@
 "use client"
 
 import { Textarea } from "@/components/ui/textarea"
-
 import { Label } from "@/components/ui/label"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Folder, FolderPlus, MoreHorizontal, Edit, Trash2, FileText } from "lucide-react"
-
+import { Folder, FolderPlus, MoreHorizontal, Edit, Trash2, FileText, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,55 +17,61 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
+
+interface Collection {
+  id: string
+  name: string
+  description: string | null
+  _count: {
+    posts: number
+  }
+  createdAt: string
+  updatedAt: string
+}
 
 export default function CollectionsPage() {
   const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
   const [newCollectionName, setNewCollectionName] = useState("")
+  const [newCollectionDescription, setNewCollectionDescription] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Mock data - in a real app, this would come from an API
-  const collections = [
-    {
-      id: 1,
-      name: "Web Development",
-      description: "Articles about web development technologies and best practices",
-      count: 5,
-      updatedAt: "2023-05-15",
-    },
-    {
-      id: 2,
-      name: "AI and Machine Learning",
-      description: "Exploring artificial intelligence and machine learning concepts",
-      count: 3,
-      updatedAt: "2023-05-10",
-    },
-    {
-      id: 3,
-      name: "Digital Marketing",
-      description: "Tips and strategies for effective digital marketing",
-      count: 2,
-      updatedAt: "2023-05-05",
-    },
-    {
-      id: 4,
-      name: "Product Management",
-      description: "Insights into product management methodologies",
-      count: 1,
-      updatedAt: "2023-05-01",
-    },
-  ]
+  const fetchCollections = async () => {
+    try {
+      const response = await fetch(`/api/collections?query=${searchQuery}`)
+      if (!response.ok) throw new Error('Failed to fetch collections')
+      const data = await response.json()
+      setCollections(data)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch collections",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
-  // Filter collections based on search query
-  const filteredCollections = collections.filter(
-    (collection) =>
-      collection.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      collection.description.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      fetchCollections()
+    }, 300) // Debounce search
 
-  const handleCreateCollection = () => {
+    return () => clearTimeout(debounceTimer)
+  }, [searchQuery])
+
+  const handleCreateCollection = async () => {
     if (!newCollectionName.trim()) {
       toast({
         title: "Collection name required",
@@ -78,22 +81,66 @@ export default function CollectionsPage() {
       return
     }
 
-    // Simulate creating collection - replace with actual API call
-    toast({
-      title: "Collection created",
-      description: `"${newCollectionName}" has been created successfully`,
-    })
+    setIsSubmitting(true)
+    try {
+      const response = await fetch('/api/collections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newCollectionName,
+          description: newCollectionDescription,
+        }),
+      })
 
-    setNewCollectionName("")
-    setIsDialogOpen(false)
+      if (!response.ok) throw new Error('Failed to create collection')
+
+      toast({
+        title: "Success",
+        description: `Collection "${newCollectionName}" has been created`,
+      })
+
+      setNewCollectionName("")
+      setNewCollectionDescription("")
+      setIsDialogOpen(false)
+      fetchCollections()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create collection",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handleDeleteCollection = (id: number, name: string) => {
-    // Simulate deleting collection - replace with actual API call
-    toast({
-      title: "Collection deleted",
-      description: `"${name}" has been deleted successfully`,
-    })
+  const handleDeleteCollection = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/collections?id=${id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) throw new Error('Failed to delete collection')
+
+      toast({
+        title: "Success",
+        description: `Collection "${name}" has been deleted`,
+      })
+
+      fetchCollections()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete collection",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
@@ -112,7 +159,9 @@ export default function CollectionsPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Collection</DialogTitle>
-              <DialogDescription>Collections help you organize your blog posts by topic or theme.</DialogDescription>
+              <DialogDescription>
+                Collections help you organize your blog posts by topic or theme.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -130,6 +179,8 @@ export default function CollectionsPage() {
                   id="description"
                   placeholder="Describe what this collection is about..."
                   className="min-h-[100px]"
+                  value={newCollectionDescription}
+                  onChange={(e) => setNewCollectionDescription(e.target.value)}
                 />
               </div>
             </div>
@@ -137,7 +188,10 @@ export default function CollectionsPage() {
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateCollection}>Create Collection</Button>
+              <Button onClick={handleCreateCollection} disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create Collection
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -152,16 +206,24 @@ export default function CollectionsPage() {
         />
       </div>
 
-      {filteredCollections.length === 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center p-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : collections.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-6">
-            <p className="mb-4 text-center text-muted-foreground">No collections found matching your criteria</p>
+            <p className="mb-4 text-center text-muted-foreground">
+              {searchQuery
+                ? "No collections found matching your search"
+                : "You haven't created any collections yet"}
+            </p>
             <Button onClick={() => setIsDialogOpen(true)}>Create New Collection</Button>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredCollections.map((collection) => (
+          {collections.map((collection) => (
             <Card key={collection.id}>
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -196,7 +258,7 @@ export default function CollectionsPage() {
               <CardContent>
                 <div className="flex items-center justify-between text-sm">
                   <span>
-                    {collection.count} {collection.count === 1 ? "post" : "posts"}
+                    {collection._count.posts} {collection._count.posts === 1 ? "post" : "posts"}
                   </span>
                   <span>Updated {new Date(collection.updatedAt).toLocaleDateString()}</span>
                 </div>
@@ -215,4 +277,3 @@ export default function CollectionsPage() {
     </div>
   )
 }
-
