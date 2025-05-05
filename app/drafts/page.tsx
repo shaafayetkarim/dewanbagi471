@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Edit, Trash2, Eye, FolderPlus } from "lucide-react"
+import { Edit, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,63 +22,84 @@ import {
 } from "@/components/ui/alert-dialog"
 import { MotionDiv, MotionCard, cardHover, fadeIn, slideUp, staggerContainer } from "@/components/ui/motion"
 
+interface Draft {
+  id: string
+  title: string
+  excerpt: string
+  writingPhase: string
+  date: string
+  wordCount: number
+}
+
 export default function DraftsPage() {
   const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [writingPhase, setWritingPhase] = useState("all")
+  const [drafts, setDrafts] = useState<Draft[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Mock data - in a real app, this would come from an API
-  const drafts = [
-    {
-      id: 1,
-      title: "Getting Started with Next.js",
-      excerpt: "Learn how to build modern web applications with Next.js, the React framework for production.",
-      status: "Needs Editing",
-      date: "2023-05-15",
-      wordCount: 850,
-    },
-    {
-      id: 2,
-      title: "Understanding TypeScript for Beginners",
-      excerpt: "A comprehensive guide to TypeScript fundamentals for JavaScript developers.",
-      status: "Ready to Publish",
-      date: "2023-05-10",
-      wordCount: 1200,
-    },
-    {
-      id: 3,
-      title: "The Future of AI in Content Creation",
-      excerpt: "Exploring how artificial intelligence is transforming the way we create and consume content.",
-      status: "Incomplete",
-      date: "2023-05-05",
-      wordCount: 450,
-    },
-    {
-      id: 4,
-      title: "10 SEO Tips for Better Blog Performance",
-      excerpt: "Practical SEO strategies to improve your blog's visibility and drive more organic traffic.",
-      status: "Ready to Publish",
-      date: "2023-05-01",
-      wordCount: 950,
-    },
-  ]
+  useEffect(() => {
+    fetchDrafts()
+  }, [searchQuery, writingPhase])
 
-  // Filter drafts based on search query and status filter
-  const filteredDrafts = drafts.filter((draft) => {
-    const matchesSearch =
-      draft.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      draft.excerpt.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === "all" || draft.status === statusFilter
+  const fetchDrafts = async () => {
+    try {
+      const queryParams = new URLSearchParams({
+        query: searchQuery,
+        writingPhase: writingPhase
+      })
+      
+      const response = await fetch(`/api/draftfetch?${queryParams}`)
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to fetch drafts')
+      }
+      
+      const data = await response.json()
+      setDrafts(data)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to load drafts",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
-    return matchesSearch && matchesStatus
-  })
+  const handleDeleteDraft = async (id: string) => {
+    try {
+      const response = await fetch(`/api/draftfetch?id=${id}`, {
+        method: 'DELETE',
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete draft')
+      }
+      
+      setDrafts(drafts.filter(draft => draft.id !== id))
+      toast({
+        title: "Success",
+        description: "Draft deleted successfully",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete draft",
+        variant: "destructive",
+      })
+    }
+  }
 
-  const handleDeleteDraft = (id: number) => {
-    // In a real app, this would call an API to delete the draft
-    toast({
-      title: "Draft deleted",
-      description: "The draft has been permanently deleted",
-    })
+  if (loading) {
+    return (
+      <div className="container mx-auto p-4 flex items-center justify-center min-h-[400px]">
+        <div className="text-muted-foreground">Loading drafts...</div>
+      </div>
+    )
   }
 
   return (
@@ -100,12 +121,12 @@ export default function DraftsPage() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="sm:max-w-xs transition-all duration-200 focus:ring-2 focus:ring-primary/50"
         />
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={writingPhase} onValueChange={setWritingPhase}>
           <SelectTrigger className="sm:max-w-xs transition-all duration-200 focus:ring-2 focus:ring-primary/50">
-            <SelectValue placeholder="Filter by status" />
+            <SelectValue placeholder="Filter by phase" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="all">All Phases</SelectItem>
             <SelectItem value="Ready to Publish">Ready to Publish</SelectItem>
             <SelectItem value="Needs Editing">Needs Editing</SelectItem>
             <SelectItem value="Incomplete">Incomplete</SelectItem>
@@ -113,7 +134,7 @@ export default function DraftsPage() {
         </Select>
       </MotionDiv>
 
-      {filteredDrafts.length === 0 ? (
+      {drafts.length === 0 ? (
         <MotionDiv variants={fadeIn} transition={{ delay: 0.2 }}>
           <Card className="border-none shadow-md">
             <CardContent className="flex flex-col items-center justify-center p-6">
@@ -126,7 +147,7 @@ export default function DraftsPage() {
         </MotionDiv>
       ) : (
         <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredDrafts.map((draft, index) => (
+          {drafts.map((draft, index) => (
             <MotionCard
               key={draft.id}
               initial={{ opacity: 0, y: 20 }}
@@ -146,14 +167,14 @@ export default function DraftsPage() {
                   </div>
                   <span
                     className={`rounded-full px-2 py-1 text-xs ${
-                      draft.status === "Ready to Publish"
+                      draft.writingPhase === "Ready to Publish"
                         ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200"
-                        : draft.status === "Needs Editing"
+                        : draft.writingPhase === "Needs Editing"
                           ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
                           : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
                     }`}
                   >
-                    {draft.status}
+                    {draft.writingPhase}
                   </span>
                 </div>
                 <p className="line-clamp-2 text-sm text-muted-foreground">{draft.excerpt}</p>
@@ -170,7 +191,6 @@ export default function DraftsPage() {
                       <Edit className="mr-2 h-4 w-4" /> Edit
                     </Link>
                   </Button>
-                  
                   
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -210,4 +230,3 @@ export default function DraftsPage() {
     </MotionDiv>
   )
 }
-
