@@ -121,7 +121,7 @@ export function Navbar() {
   const handleLogout = async () => {
     try {
       // Create a response to clear the cookie
-      document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
       
       // Redirect to login page
       router.push('/login')
