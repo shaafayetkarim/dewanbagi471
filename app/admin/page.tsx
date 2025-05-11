@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Users, FileText, BarChart3, UserPlus, Download } from "lucide-react"
+import { Users, FileText, BarChart3, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -9,21 +9,33 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function AdminPage() {
   const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   
   // State for users and stats
   const [users, setUsers] = useState([])
-  const [stats, setStats] = useState([
-    { title: "Total Users", value: "0", icon: Users },
-    { title: "Total Blogs", value: "0", icon: FileText },
-    { title: "Premium Users", value: "0", icon: Users },
-    { title: "Blogs This Month", value: "0", icon: BarChart3 },
-  ])
-  
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalPosts: 0,
+    premiumUsers: 0,
+    postsThisMonth: 0,
+  })
+
   // Load data on component mount
   useEffect(() => {
     fetchUsers()
@@ -33,7 +45,9 @@ export default function AdminPage() {
   // Fetch users from API
   const fetchUsers = async () => {
     try {
+      setIsLoading(true)
       const response = await fetch('/api/admin/users')
+      if (!response.ok) throw new Error('Failed to fetch users')
       const data = await response.json()
       setUsers(data)
     } catch (error) {
@@ -42,6 +56,8 @@ export default function AdminPage() {
         description: "Failed to fetch users",
         variant: "destructive"
       })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -49,13 +65,9 @@ export default function AdminPage() {
   const fetchStats = async () => {
     try {
       const response = await fetch('/api/admin/stats')
+      if (!response.ok) throw new Error('Failed to fetch stats')
       const data = await response.json()
-      setStats([
-        { title: "Total Users", value: data.totalUsers.toString(), icon: Users },
-        { title: "Total Blogs", value: data.totalPosts.toString(), icon: FileText },
-        { title: "Premium Users", value: data.premiumUsers.toString(), icon: Users },
-        { title: "Blogs This Month", value: data.postsThisMonth.toString(), icon: BarChart3 },
-      ])
+      setStats(data)
     } catch (error) {
       toast({
         title: "Error",
@@ -71,73 +83,84 @@ export default function AdminPage() {
       user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesRole = roleFilter === "all" || user.role === roleFilter
-
     return matchesSearch && matchesRole
   })
 
-  const handleChangeUserRole = async (userId, newRole) => {
+  const handleUpdateUser = async (userId: string, updateData: { role?: string; subscription?: string }) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify({
+          userId,
+          ...updateData
+        }),
       })
-      
-      if (response.ok) {
-        // Update the user in the local state
-        setUsers(users.map(user => 
-          user.id === userId ? { ...user, role: newRole } : user
-        ))
-        
-        toast({
-          title: "Role updated",
-          description: `User role has been updated to ${newRole}`,
-        })
-      } else {
-        throw new Error('Failed to update user role')
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update user')
       }
+
+      const updatedUser = await response.json()
+      
+      // Update local state
+      setUsers(users.map(user => 
+        user.id === userId ? updatedUser : user
+      ))
+
+      // Refresh stats if subscription was updated
+      if (updateData.subscription) {
+        fetchStats()
+      }
+
+      toast({
+        title: "Success",
+        description: "User updated successfully",
+      })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update user role",
+        description: error.message || "Failed to update user",
         variant: "destructive"
       })
     }
   }
 
-  const handleDeleteUser = async (userId) => {
+  const handleDeleteUser = async (userId: string) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetch(`/api/admin/users?userId=${userId}`, {
         method: 'DELETE',
       })
-      
-      if (response.ok) {
-        // Remove the user from the local state
-        setUsers(users.filter(user => user.id !== userId))
-        
-        toast({
-          title: "User deleted",
-          description: "User has been successfully deleted",
-        })
-        
-        // Refresh stats after deletion
-        fetchStats()
-      } else {
-        throw new Error('Failed to delete user')
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete user')
       }
+
+      // Update local state
+      setUsers(users.filter(user => user.id !== userId))
+      setDeleteUserId(null)
+      
+      // Refresh stats
+      fetchStats()
+
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to delete user",
+        description: error.message || "Failed to delete user",
         variant: "destructive"
       })
     }
   }
 
   const handleExportData = () => {
-    // Simple CSV export function
     const headers = ["Name", "Email", "Role", "Subscription", "Generations Left", "Created At"]
     const csvContent = [
       headers.join(","),
@@ -146,7 +169,7 @@ export default function AdminPage() {
         user.email,
         user.role,
         user.subscription,
-        user.generationsLeft,
+        `${user.generationsLeft}/${user.generationsTotal}`,
         new Date(user.createdAt).toLocaleDateString()
       ].join(","))
     ].join("\n")
@@ -174,152 +197,173 @@ export default function AdminPage() {
       </div>
 
       <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
-        ))}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalUsers}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Blogs</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalPosts}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Premium Users</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.premiumUsers}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Blogs This Month</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.postsThisMonth}</div>
+          </CardContent>
+        </Card>
       </div>
 
-      <Tabs defaultValue="users">
-        <TabsList className="mb-6">
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="blogs">Blogs</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>User Management</CardTitle>
+          <CardDescription>View and manage user accounts</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row">
+            <Input
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="sm:max-w-xs"
+            />
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="sm:max-w-xs">
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="user">User</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="ml-auto">
+              <Button variant="outline" onClick={handleExportData}>
+                <Download className="mr-2 h-4 w-4" /> Export Users
+              </Button>
+            </div>
+          </div>
 
-        <TabsContent value="users">
-          <Card>
-            <CardHeader>
-              <CardTitle>User Management</CardTitle>
-              <CardDescription>View and manage user accounts</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-6 flex flex-col gap-4 sm:flex-row">
-                <Input
-                  placeholder="Search users..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="sm:max-w-xs"
-                />
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="sm:max-w-xs">
-                    <SelectValue placeholder="Filter by role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Roles</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="user">User</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="ml-auto flex gap-2">
-                  <Button variant="outline" onClick={handleExportData}>
-                    <Download className="mr-2 h-4 w-4" /> Export
-                  </Button>
-                </div>
-              </div>
-
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Subscription</TableHead>
-                      <TableHead>Generations</TableHead>
-                      <TableHead>Join Date</TableHead>
-                      <TableHead>Actions</TableHead>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Subscription</TableHead>
+                  <TableHead>Generations</TableHead>
+                  <TableHead>Join Date</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-4">
+                      Loading users...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-4">
+                      No users found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.name || "N/A"}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Select
+                          defaultValue={user.role}
+                          onValueChange={(value) => handleUpdateUser(user.id, { role: value })}
+                        >
+                          <SelectTrigger className="h-8 w-[100px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="user">User</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          defaultValue={user.subscription}
+                          onValueChange={(value) => handleUpdateUser(user.id, { subscription: value })}
+                        >
+                          <SelectTrigger className="h-8 w-[100px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="free">Free</SelectItem>
+                            <SelectItem value="premium">Premium</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>{user.generationsLeft}/{user.generationsTotal}</TableCell>
+                      <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setDeleteUserId(user.id)}
+                        >
+                          Delete
+                        </Button>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.name || "N/A"}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <Select
-                            defaultValue={user.role}
-                            onValueChange={(value) => handleChangeUserRole(user.id, value)}
-                          >
-                            <SelectTrigger className="h-8 w-[100px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="user">User</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`rounded-full px-2 py-1 text-xs ${
-                            user.subscription === "premium"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                          }`}>
-                            {user.subscription}
-                          </span>
-                        </TableCell>
-                        <TableCell>{user.generationsLeft}/{user.generationsTotal}</TableCell>
-                        <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-destructive"
-                              onClick={() => handleDeleteUser(user.id)}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {filteredUsers.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-4">
-                          No users found
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="blogs">
-          <Card>
-            <CardHeader>
-              <CardTitle>Blog Management</CardTitle>
-              <CardDescription>Monitor and manage all blog content</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-center text-muted-foreground">Blog management interface would be implemented here</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="analytics">
-          <Card>
-            <CardHeader>
-              <CardTitle>Analytics</CardTitle>
-              <CardDescription>Platform usage statistics and trends</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-center text-muted-foreground">Analytics dashboard would be implemented here</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      <AlertDialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the user account
+              and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteUserId && handleDeleteUser(deleteUserId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
